@@ -1,0 +1,1028 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Melting Curve Normalizer</title>
+  <!-- Minimal styling -->
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:900px;margin:24px auto;padding:0 16px;color:#111}
+    h1{font-size:20px;margin-bottom:6px}
+    p.lead{color:#444;margin-top:0}
+    .controls{display:flex;gap:8px;align-items:center;margin:12px 0}
+    input[type=file]{padding:6px}
+    button{background:#0b79ff;border:none;color:#fff;padding:8px 12px;border-radius:6px;cursor:pointer}
+    button:disabled{opacity:.5;cursor:not-allowed}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    th,td{padding:6px;border-bottom:1px solid #eee;text-align:right}
+    th{text-align:left;background:#fafafa}
+    .note{font-size:13px;color:#666}
+    canvas{background:#fff;border:1px solid #eee;border-radius:6px;display:block;width:100%;height:auto;max-height:360px}
+    footer{margin-top:18px;color:#666;font-size:13px}
+  </style>
+</head>
+<body>
+  <h1>Melting Curve Normalizer</h1>
+  <p class="lead">Upload a CSV with a temperature column and a fluorescence/melting column. The app detects numeric columns, normalizes the Y column to 0–1, shows values, and lets you download the normalized CSV.</p>
+
+  <!-- Dropdown Help Section -->
+  <div style="margin-bottom:12px">
+    <button id="helpToggle" style="background:#6c757d;padding:8px 12px;border-radius:6px;border:none;color:#fff;cursor:pointer;font-weight:500;margin-right:8px">
+      ℹ️ How This Works (Biochemical Explanation)
+    </button>
+    <button id="guideToggle" style="background:#28a745;padding:8px 12px;border-radius:6px;border:none;color:#fff;cursor:pointer;font-weight:500">
+      📖 Step-by-Step Guide
+    </button>
+    <div id="helpContent" style="display:none;margin-top:12px;padding:12px;background:#f8f9ff;border-left:4px solid #0b79ff;border-radius:6px;font-size:14px;line-height:1.6;color:#333">
+        <div style="margin-bottom:10px">
+          <strong style="color:#0b79ff;font-size:15px">🧬 What This App Does:</strong>
+          <p style="margin:6px 0">Normalizes raw qPCR melting curve fluorescence signals (from dye bound to double-stranded DNA) to a standardized 0–1 scale, enabling cross-experiment comparison and accurate Tm (melting temperature) identification.</p>
+        </div>
+
+        <div style="margin-bottom:10px;padding:10px;background:#fff;border-radius:4px">
+          <strong style="color:#0b79ff;font-size:15px">🔬 What Signal Is Being Normalized?</strong>
+          <ul style="margin:6px 0;padding-left:20px">
+            <li>The app normalizes the <strong>raw fluorescence signal measured by the PCR instrument</strong>.</li>
+            <li>This signal comes from <strong>fluorescent intercalating dyes</strong> (e.g., SYBR Green, EvaGreen) that bind specifically to double-stranded DNA (dsDNA).</li>
+            <li><strong>It is not the DNA itself that fluoresces</strong>—it is the dye, whose fluorescence intensity depends on how much dsDNA is present at each temperature.</li>
+          </ul>
+          <div style="margin:6px 0 0 0">
+            <strong>Biochemical Details:</strong>
+            <ul style="margin:6px 0;padding-left:20px">
+              <li>At low temperatures, most DNA is double-stranded. The dye binds and fluoresces strongly (high signal).</li>
+              <li>As temperature increases, DNA melts (denatures) into single strands. The dye is released and fluorescence drops (low signal).</li>
+              <li>The instrument records this dye fluorescence at each temperature step, producing the raw data you upload.</li>
+            </ul>
+          </div>
+          <div style="margin:6px 0 0 0">
+            <strong>In Summary:</strong>
+            <ul style="margin:6px 0;padding-left:20px">
+              <li><strong>What is normalized:</strong> The raw fluorescence intensity of the dye bound to dsDNA, as measured by the PCR instrument.</li>
+              <li><strong>What it represents:</strong> The fraction of DNA that is double-stranded (high fluorescence) vs. single-stranded (low fluorescence) at each temperature.</li>
+              <li><strong>Why it matters:</strong> This is the standard, accepted method for analyzing DNA melting curves in molecular biology.</li>
+            </ul>
+          </div>
+        </div>
+
+        <div style="margin-bottom:10px;padding:10px;background:#fff;border-radius:4px">
+          <strong style="color:#0b79ff;font-size:15px">📈 How the Reference Curve Is Calculated (Biochemical Logic):</strong>
+          <ol style="margin:6px 0 10px 20px; padding-left:0">
+            <li><strong>Input: Raw Reference CSV</strong><br>
+              The app takes your real, experimental melting curve data as a CSV. This data is generated by your PCR instrument, measuring fluorescence as temperature increases.
+            </li>
+            <li><strong>Two-Pass Streaming Analysis</strong><br>
+              <strong>First pass:</strong> The app scans the entire file to detect which columns are temperature and fluorescence, and finds the minimum and maximum fluorescence values.<br>
+              <strong>Second pass:</strong> The app processes the data row by row, using only the actual values from your file (no artificial smoothing or fitting).
+            </li>
+            <li><strong>Step-Based Downsampling (Reference Curve)</strong><br>
+              The app samples every Nth point (e.g., every 3rd row) from your real data. This is a deterministic, transparent process: no interpolation, no curve fitting, no “cheating.” The sampled points are the actual measured values from your experiment, just reduced in number for easier comparison and plotting.
+            </li>
+            <li><strong>Biochemical Normalization</strong><br>
+              For each sampled point, the app calculates the “fraction melted” using:<br>
+              <span style="font-family:monospace;display:block;margin:4px 0 4px 0">fraction_melted = (maxF − F) / (maxF − minF)</span>
+              <ul style="margin:6px 0 0 20px">
+                <li><strong>maxF:</strong> Maximum fluorescence in your reference data (fully double-stranded DNA, before melting)</li>
+                <li><strong>minF:</strong> Minimum fluorescence (fully single-stranded DNA, after melting)</li>
+                <li><strong>F:</strong> The actual fluorescence at each temperature point</li>
+              </ul>
+              <div style="margin:6px 0 0 0">
+                <strong>This formula is standard in biochemistry for melting curves:</strong>
+                <ul style="margin:6px 0 0 20px">
+                  <li>At low temperature (all dsDNA): F ≈ maxF, so fraction_melted ≈ 0</li>
+                  <li>At Tm (half dsDNA, half ssDNA): F is halfway between maxF and minF, so fraction_melted ≈ 0.5</li>
+                  <li>At high temperature (all ssDNA): F ≈ minF, so fraction_melted ≈ 1</li>
+                </ul>
+              </div>
+            </li>
+            <li><strong>No Artificial Fitting or Smoothing</strong><br>
+              The app does not fit a mathematical model or force the reference to look like any idealized curve. The only optional smoothing is monotonic smoothing, which is a simple filter to remove noise spikes, not to change the underlying trend. The reference curve is a direct, mathematically transparent transformation of your real, measured data.
+            </li>
+            <li><strong>Why This Is Biochemically Accurate</strong><br>
+              The normalization and downsampling are standard, accepted methods in molecular biology for comparing melting curves. The reference curve reflects the true melting behavior of your DNA sample, as measured by your instrument. No part of the process “cheats” or artificially makes the reference look better or more ideal than your real data.
+            </li>
+          </ol>
+        </div>
+
+        <div style="margin-bottom:10px;padding:10px;background:#fff;border-radius:4px">
+          <strong style="color:#0b79ff;font-size:15px">⚙️ Key Features & Their Purpose:</strong>
+          <ul style="margin:6px 0;padding-left:20px">
+            <li><strong>Auto-Column Detection:</strong> Identifies numeric columns (temperature vs. fluorescence) automatically. Real-world PCR software outputs vary—this detects which columns are >50% numeric.</li>
+            <li><strong>Streaming Parser:</strong> Processes large datasets (1,000–100,000+ points) in chunks without loading into memory, preventing crashes on large PCR runs.</li>
+            <li><strong>Downsampling:</strong> Reduces to 20–50 evenly-spaced points while preserving Tm region. Uses formula idx = round(i × (length−1) / (N−1)) to maintain curve shape without interpolation artifacts.</li>
+            <li><strong>Monotonic Smoothing:</strong> Enforces non-decreasing normalized fraction, removing noise spikes while preserving biological accuracy. Important because melting curves should show smooth, continuous DNA denaturation.</li>
+            <li><strong>Reference Curve Tool:</strong> Creates standardized reference curves via step-based sampling (every Nth point). Fraction computed as (maxF − F) / (maxF − minF) for QC validation across instruments.</li>
+            <li><strong>Dual-Axis Chart:</strong> Visualizes original (blue) vs. normalized (orange) simultaneously, showing the transformation's effect.</li>
+          </ul>
+        </div>
+
+        <div style="margin-bottom:10px;padding:10px;background:#fff;border-radius:4px">
+          <strong style="color:#0b79ff;font-size:15px">📊 Practical PCR Applications:</strong>
+          <ul style="margin:6px 0;padding-left:20px">
+            <li><strong>Cross-Experiment Comparison:</strong> Normalized curves from different runs (different starting DNA amounts, reagent batches) can be overlaid to detect consistent Tm and identify off-target amplification.</li>
+            <li><strong>Genotyping:</strong> Different alleles produce different Tm values. Normalized curves clearly show Tm differences independent of signal intensity.</li>
+            <li><strong>Instrument QC:</strong> Compare normalized reference curves across different qPCR machines to validate instrument calibration and detect optical drift.</li>
+            <li><strong>Data Sharing:</strong> Publish or share normalized curves without raw instrument-dependent noise, improving reproducibility and comparability.</li>
+            <li><strong>Off-Target Detection:</strong> Secondary peaks at unexpected temperatures appear clearly in normalized curves, revealing primer dimers or non-specific amplification.</li>
+          </ul>
+        </div>
+
+      <div style="padding:10px;background:#fff;border-radius:4px">
+        <strong style="color:#0b79ff;font-size:15px">🔑 Why Min-Max Normalization for PCR?</strong>
+        <p style="margin:6px 0">Min-max scaling preserves the curve's biological shape while standardizing scale. Unlike z-score normalization (which can produce negative values unsuitable for fraction representation), min-max ensures normalized values represent the actual fraction of denatured DNA: 0 = fully dsDNA, 1 = fully ssDNA, 0.5 = Tm.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step-by-Step Guide Section -->
+  <div id="guideContent" style="display:none;margin-top:12px;padding:12px;background:#f0fff4;border-left:4px solid #28a745;border-radius:6px;font-size:14px;line-height:1.8;color:#333">
+    <h3 style="color:#28a745;margin-top:0;margin-bottom:12px">📖 How to Use the Melting Curve Normalizer</h3>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 1: Prepare Your CSV File</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>Export your qPCR melting curve data from your instrument (Applied Biosystems, Roche, Bio-Rad, etc.)</li>
+        <li>The file must contain at least two numeric columns: one for <strong>temperature</strong> and one for <strong>fluorescence</strong></li>
+        <li>Column headers will be auto-detected (e.g., "Temperature", "Fluorescence", "F", "Temp", etc.)</li>
+        <li>Example format: Temperature (°C) | Fluorescence (AU)</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 2: Upload Your File</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>Click the <strong>"Choose File"</strong> button or drag-and-drop your CSV onto the page</li>
+        <li>The app will scan your file (two-pass streaming analysis) to:</li>
+        <ul style="margin:6px 0;padding-left:20px">
+          <li>Detect numeric columns and identify temperature vs. fluorescence</li>
+          <li>Find the minimum and maximum fluorescence values in your dataset</li>
+          <li>Calculate column statistics (% numeric values, min, max)</li>
+          <li>Generate a preview table and chart</li>
+        </ul>
+        <li>This process takes a few seconds even for large files (100,000+ rows)</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 3: Verify Column Selection</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>The app auto-detects and pre-selects the X (temperature) and Y (fluorescence) columns</li>
+        <li>If auto-detection is incorrect, manually select the correct columns from the dropdowns</li>
+        <li>Click <strong>"Apply columns"</strong> to update the preview and chart</li>
+        <li>Review the <strong>"Column Statistics"</strong> table to confirm which columns are >50% numeric</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 4: (Optional) Configure Downsampling for Chart</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>Use the <strong>"Downsample"</strong> dropdown to reduce the number of points displayed on the chart:</li>
+        <ul style="margin:6px 0;padding-left:20px">
+          <li><strong>Off (full):</strong> Shows all points if file ≤ 50,000 rows; otherwise shows sampled preview</li>
+          <li><strong>20, 30, 40, 50:</strong> Selects N evenly-spaced points across the entire curve</li>
+        </ul>
+        <li>Downsampling for chart display does <strong>NOT</strong> affect the downloaded file—only the visualization</li>
+        <li>The downsampled curve preserves the Tm region and overall shape using deterministic spacing (no interpolation)</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 5: (Optional) Enable Monotonic Smoothing</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>Check the <strong>"Monotonic smoothing"</strong> checkbox to enforce non-decreasing melting fraction</li>
+        <li>This removes noise spikes while preserving the biological Tm transition</li>
+        <li>The chart will update to show the smoothed normalized curve (orange line)</li>
+        <li>Smoothing is optional and recommended only if your raw data has significant measurement noise</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 6: Download Normalized CSV</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>Click the <strong>"Download normalized CSV"</strong> button to export your normalized data</li>
+        <li>The app performs a second streaming pass to normalize every row using the formula:</li>
+        <div style="font-family:monospace;background:#f5f5f5;padding:8px;margin:6px 0;border-radius:4px">
+          normalized = (raw_fluorescence − min_fluorescence) / (max_fluorescence − min_fluorescence)
+        </div>
+        <li>The downloaded file contains three columns:</li>
+        <ul style="margin:6px 0;padding-left:20px">
+          <li><strong>Temperature:</strong> Your original temperature values</li>
+          <li><strong>Fluorescence_original:</strong> Your raw fluorescence signal (unchanged)</li>
+          <li><strong>Fluorescence_normalized:</strong> Normalized to 0–1 scale</li>
+        </ul>
+        <li>All values are formatted to 4 decimal places and include a UTF-8 BOM for Excel compatibility</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 7: (Optional) Create Reference Curve</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>The <strong>"Downsample Reference Curve"</strong> feature generates a simplified reference from your data for quality control</li>
+        <li>Enter a step size (default: 3) to sample every Nth row from your file</li>
+        <li>Example: Step size 3 means the app keeps rows 0, 3, 6, 9, etc.</li>
+        <li>For each sampled point, the app calculates <strong>fraction_melted</strong> using the biochemical formula:</li>
+        <div style="font-family:monospace;background:#f5f5f5;padding:8px;margin:6px 0;border-radius:4px">
+          fraction_melted = (max_fluorescence − fluorescence) / (max_fluorescence − min_fluorescence)
+        </div>
+        <li>This produces a normalized reference curve where:</li>
+        <ul style="margin:6px 0;padding-left:20px">
+          <li>0 = fully denatured DNA (low fluorescence)</li>
+          <li>0.5 = Tm (50% melted)</li>
+          <li>1 = fully intact dsDNA (high fluorescence)</li>
+        </ul>
+        <li>The reference curve is ideal for:</li>
+        <ul style="margin:6px 0;padding-left:20px">
+          <li>Instrument QC validation across multiple qPCR machines</li>
+          <li>Cross-experiment comparison of Tm values</li>
+          <li>Publication and data sharing (reduced file size, standardized format)</li>
+        </ul>
+        <li>Click <strong>"Download reference CSV"</strong> to export the downsampled reference</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Step 8: (Optional) Enable StreamSaver</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>For very large files (100,000+ rows), enable <strong>"Stream to disk (StreamSaver)"</strong></li>
+        <li>This writes the normalized CSV directly to your disk without loading the entire file into browser memory</li>
+        <li>Useful for preventing browser slowdown or crashes on extremely large datasets</li>
+        <li>If unchecked, the file is built in memory and downloaded as a standard blob (faster for smaller files)</li>
+      </ul>
+    </div>
+
+    <div style="margin-bottom:14px;padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">Quick Summary: What Happens Behind the Scenes</strong>
+      <ol style="margin:6px 0;padding-left:20px">
+        <li><strong>File Upload:</strong> You select a CSV with temperature and fluorescence columns</li>
+        <li><strong>Scanning (Pass 1):</strong> App finds min/max fluorescence and detects columns</li>
+        <li><strong>Preview:</strong> Shows sampled rows and chart with original vs. normalized curves</li>
+        <li><strong>Normalization (Pass 2):</strong> App applies min-max scaling: (raw − min) / (max − min)</li>
+        <li><strong>Download:</strong> Export normalized CSV with original + normalized values</li>
+        <li><strong>Reference:</strong> Optionally create downsampled reference curve for QC</li>
+      </ol>
+    </div>
+
+    <div style="padding:10px;background:#fff;border-radius:4px">
+      <strong style="color:#28a745;font-size:14px">⚠️ Important Notes</strong>
+      <ul style="margin:6px 0;padding-left:20px">
+        <li>All processing happens in your browser—no data is uploaded to servers</li>
+        <li>Large files (>1 million rows) may take several seconds to process</li>
+        <li>The app works best in Chrome; other browsers may have reduced performance</li>
+        <li>Empty cells and non-numeric values are skipped; only numeric columns are analyzed</li>
+        <li>The normalized values always fall between 0 and 1, with Tm around 0.5</li>
+      </ul>
+    </div>
+  </div>  <div class="controls">
+    <input id="fileInput" type="file" accept=".csv" />
+    <button id="downloadBtn" disabled>Download normalized CSV</button>
+    <div id="status" style="margin-left:8px;color:#444"></div>
+  </div>
+
+  <div style="display:flex;gap:8px;align-items:center;margin-top:6px;flex-wrap:wrap">
+    <label class="note">X:</label>
+    <select id="colX" disabled></select>
+    <label class="note">Y:</label>
+    <select id="colY" disabled></select>
+    <button id="applyCols" disabled>Apply columns</button>
+    <label style="margin-left:8px"><input id="useStreamSaver" type="checkbox"> Stream to disk (StreamSaver)</label>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+    <label class="note">Downsample:</label>
+    <select id="downsampleSelect" aria-label="Downsample options">
+      <option value="0">Off (full)</option>
+      <option value="20">20</option>
+      <option value="30">30</option>
+      <option value="40">40</option>
+      <option value="50">50</option>
+    </select>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+    <label class="note">Reference Downsample step N:</label>
+    <input id="stepSize" type="number" min="1" value="3" style="width:80px;padding:6px;border-radius:6px;border:1px solid #ddd" />
+    <button id="downsampleRefBtn">Downsample Reference Curve</button>
+    <button id="downloadRefBtn" disabled>Download reference CSV</button>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+    <label style="display:flex;align-items:center;gap:8px;font-weight:500">
+      <input id="monotonicsm" type="checkbox" style="width:auto;cursor:pointer" />
+      <span>Monotonic smoothing</span>
+    </label>
+    <span class="note">Enforce non-decreasing melting fraction along the curve</span>
+  </div>
+  <div style="margin-top:8px;display:flex;gap:8px;align-items:center">
+    <progress id="progressBar" value="0" max="100" style="width:240px;"></progress>
+    <div id="progressText" class="note">No task</div>
+  </div>
+
+  <!-- Column statistics table (shows percent numeric, min, max) -->
+  <div id="colStats" style="margin-top:12px;font-size:13px;color:#333"></div>
+
+  <div class="grid">
+    <div>
+      <h3>Data Preview</h3>
+      <div id="tableContainer" style="max-height:420px;overflow:auto;border:1px solid #f0f0f0;padding:8px;border-radius:6px"></div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;overflow:hidden">
+      <h3 style="margin-top:0;flex-shrink:0">Chart</h3>
+      <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+        <canvas id="chart" width="600" height="360" style="flex:1"></canvas>
+      </div>
+      <p class="note" style="margin-top:8px;flex-shrink:0">Original (blue) and Normalized (orange) values. Normalized range is 0–1.</p>
+    </div>
+  </div>
+
+  <footer>Single-file app — open `melt-normalizer.html` in Chrome. Uses FileReader + PapaParse for robust CSV parsing.</footer>
+
+  <!-- Load dependencies from CDN: PapaParse for parsing, Chart.js for charting -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/streamsaver@2.0.5/StreamSaver.min.js"></script>
+
+  <script>
+  // Optimized Melting Curve Normalizer
+  // Improvements for large CSVs:
+  // - Two-pass streaming parse with PapaParse (worker=true)
+  // - First pass: gather per-column numeric stats (counts, min, max) and sample rows for preview/chart
+  // - Second pass: stream-normalize and write CSV in chunks (reduce peak memory)
+  // - Limits DOM updates and samples data for plotting to avoid plotting millions of points
+
+  // Help toggle functionality
+  const helpToggle = document.getElementById('helpToggle');
+  const helpContent = document.getElementById('helpContent');
+  helpToggle.addEventListener('click', () => {
+    const isVisible = helpContent.style.display !== 'none';
+    helpContent.style.display = isVisible ? 'none' : 'block';
+    guideContent.style.display = 'none'; // close guide when opening help
+    helpToggle.textContent = isVisible 
+      ? '↓ How This Works (Biochemical Explanation)' 
+      : '↑ How This Works (Biochemical Explanation)';
+  });
+
+  // Guide toggle functionality
+  const guideToggle = document.getElementById('guideToggle');
+  const guideContent = document.getElementById('guideContent');
+  guideToggle.addEventListener('click', () => {
+    const isVisible = guideContent.style.display !== 'none';
+    guideContent.style.display = isVisible ? 'none' : 'block';
+    helpContent.style.display = 'none'; // close help when opening guide
+    guideToggle.textContent = isVisible 
+      ? '↓ Step-by-Step Guide' 
+      : '↑ Step-by-Step Guide';
+  });
+
+  const fileInput = document.getElementById('fileInput');
+  const tableContainer = document.getElementById('tableContainer');
+  const status = document.getElementById('status');
+  const downloadBtn = document.getElementById('downloadBtn');
+  const chartCanvas = document.getElementById('chart');
+  const colX = document.getElementById('colX');
+  const colY = document.getElementById('colY');
+  const applyCols = document.getElementById('applyCols');
+  const useStreamSaver = document.getElementById('useStreamSaver');
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const downsampleSelect = document.getElementById('downsampleSelect');
+  const stepSize = document.getElementById('stepSize');
+  const downsampleRefBtn = document.getElementById('downsampleRefBtn');
+  const downloadRefBtn = document.getElementById('downloadRefBtn');
+  const monotonicsm = document.getElementById('monotonicsm');
+  let chart = null;
+
+  // State for streaming
+  let fields = [];
+  let perFieldStats = {}; // { fieldName: {countNumeric, countTotal, min, max} }
+  let sampledRows = []; // limited preview/sample rows
+  const SAMPLE_LIMIT = 800; // number of points to sample for chart/preview
+  const FLUSH_LINES = 5000; // chunk size when building CSV parts
+  let chosenX = null, chosenY = null;
+  let totalRows = 0;
+  let writer = null;
+  // Downsample state: N (0 means Off) and index set to keep
+  let downsampleN = 0;
+  let downsampleIndices = null; // Set of integer indices to keep
+  let downsampledTemperature = [];
+  let downsampledFraction = [];
+
+  function isNumeric(v){ return v !== null && v !== undefined && v !== '' && !Number.isNaN(Number(v)); }
+
+  function enforceMonotonicIncrease(arr) {
+    let fixed = [...arr];
+    for (let i = 1; i < fixed.length; i++) {
+      if (fixed[i] < fixed[i-1]) fixed[i] = fixed[i-1];
+    }
+    return fixed;
+  }
+
+  function smoothNoisyPeaks(arr, threshold = 0.05) {
+    // Smooth sharp spikes/noise while preserving overall curve shape
+    // threshold: max allowed single-point change (as fraction of total range)
+    let smoothed = [...arr];
+    const range = Math.max(...arr) - Math.min(...arr);
+    const maxChange = range * threshold;
+    
+    for (let i = 1; i < smoothed.length - 1; i++) {
+      const prev = smoothed[i - 1];
+      const curr = smoothed[i];
+      const next = smoothed[i + 1];
+      
+      // Check if this point is a sharp spike (large jump then drop)
+      const changeUp = curr - prev;
+      const changeDown = next - curr;
+      
+      // If there's a sharp up-down or down-up pattern that's larger than threshold, smooth it
+      if (Math.abs(changeUp) > maxChange && Math.sign(changeUp) !== Math.sign(changeDown)) {
+        // Average with neighbors to smooth the spike
+        smoothed[i] = (prev + next) / 2;
+      }
+    }
+    
+    return smoothed;
+  }
+
+  // Robust CSV field escaping following RFC4180-ish rules:
+  // - Numbers are emitted as-is (no quotes)
+  // - Strings containing comma, quote, CR/LF, or leading/trailing space are quoted and internal quotes doubled
+  function csvEscapeField(v){
+    if(v === null || v === undefined) return '';
+    // allow numbers without quotes
+    if(isNumeric(v)) return String(v);
+    let s = String(v);
+    // normalize CRLF -> LF
+    s = s.replace(/\r\n/g,'\n').replace(/\r/g,'\n');
+    const mustQuote = /[",\n]/.test(s) || /^\s|\s$/.test(s);
+    if(mustQuote){
+      return '"' + s.replace(/"/g,'""') + '"';
+    }
+    return s;
+  }
+
+  function resetState(){
+    fields = [];
+    perFieldStats = {};
+    sampledRows = [];
+    chosenX = chosenY = null;
+    downloadBtn.disabled = true;
+    tableContainer.innerHTML = '';
+    if(chart){ chart.destroy(); chart = null; }
+  }
+
+  fileInput.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    resetState();
+    status.textContent = `Scanning ${file.name} (streaming analysis)...`;
+
+    // FIRST PASS: streaming scan to gather stats and sample rows
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      worker: true,
+      step: (result) => {
+        const row = result.data;
+        totalRows++;
+        if(!fields.length){ // initialize on first row
+          fields = result.meta.fields || Object.keys(row);
+          // init stats
+          for(const f of fields){ perFieldStats[f] = {countNumeric:0, countTotal:0, min: Infinity, max: -Infinity}; }
+        }
+
+        // update stats per field
+        for(const f of fields){
+          const v = row[f];
+          if(v === undefined || v === null || v === ''){ perFieldStats[f].countTotal++; continue; }
+          perFieldStats[f].countTotal++;
+          if(isNumeric(v)){
+            const n = Number(v);
+            perFieldStats[f].countNumeric++;
+            if(n < perFieldStats[f].min) perFieldStats[f].min = n;
+            if(n > perFieldStats[f].max) perFieldStats[f].max = n;
+          }
+        }
+
+        // simple sampling strategy: keep first SAMPLE_LIMIT rows, then reservoir-sample further rows
+        // Store the original row index so sampledRows can be mapped back to file positions
+        const snapshot = Object.assign({__i: totalRows-1}, row);
+        if(sampledRows.length < SAMPLE_LIMIT){ sampledRows.push(snapshot); }
+        else if(Math.random() < (SAMPLE_LIMIT / (sampledRows.length + 1))){
+          const idx = Math.floor(Math.random() * SAMPLE_LIMIT);
+          sampledRows[idx] = snapshot;
+        }
+      },
+      complete: () => {
+        // store total rows for progress estimation during download
+        downloadBtn.dataset.totalRows = totalRows;
+        // choose numeric columns: prefer columns with >50% numeric values
+        const ranked = fields.map(f => ({ field: f, ratio: (perFieldStats[f].countTotal===0?0:perFieldStats[f].countNumeric / perFieldStats[f].countTotal) }));
+        const numericCandidates = ranked.filter(x => x.ratio >= 0.5);
+        if(numericCandidates.length >= 2){ chosenX = numericCandidates[0].field; chosenY = numericCandidates[1].field; }
+        else {
+          ranked.sort((a,b)=>b.ratio - a.ratio);
+          if(ranked.length >= 2){ chosenX = ranked[0].field; chosenY = ranked[1].field; }
+        }
+
+        if(!chosenX || !chosenY){ status.textContent = 'Could not detect two numeric columns. Try cleaning CSV or choose columns manually.'; return; }
+
+        const minY = perFieldStats[chosenY].min === Infinity ? null : perFieldStats[chosenY].min;
+        const maxY = perFieldStats[chosenY].max === -Infinity ? null : perFieldStats[chosenY].max;
+        if(minY === null || maxY === null || minY === maxY){ status.textContent = 'Y values have no variation or are missing numeric values.'; return; }
+
+        status.textContent = `Detected X: "${chosenX}", Y: "${chosenY}" (min=${minY}, max=${maxY}). Preparing preview and download.`;
+
+        // populate column selectors so user can override detection (show numeric % and min/max)
+        colX.innerHTML = '';
+        colY.innerHTML = '';
+        for(const f of fields){
+          const optX = document.createElement('option'); optX.value = f; optX.textContent = f; if(f===chosenX) optX.selected = true; colX.appendChild(optX);
+          const optY = document.createElement('option'); optY.value = f; optY.textContent = f; if(f===chosenY) optY.selected = true; colY.appendChild(optY);
+        }
+        // render separate stats table
+        populateStatsTable(perFieldStats, fields);
+        colX.disabled = false; colY.disabled = false; applyCols.disabled = false;
+
+        // Build preview from sampledRows (compute normalized values for preview)
+        const xs = [], ys = [], ysNorm = [];
+        for(const r of sampledRows){
+          const xv = r[chosenX]; const yv = r[chosenY];
+          const xn = isNumeric(xv) ? Number(xv) : null;
+          const yn = isNumeric(yv) ? Number(yv) : null;
+          xs.push(xn); ys.push(yn); ysNorm.push( yn===null ? null : ((yn - minY) / (maxY - minY)) );
+        }
+
+        // Initial render uses sampled preview. Full/downsampled render will occur when user chooses downsampling options.
+        renderTableFromSample(sampledRows, chosenX, chosenY, ysNorm);
+        renderChart(xs, ys, ysNorm);
+        downloadBtn.disabled = false;
+
+        // Prepare second pass only when user clicks download (to avoid doing heavy work unless requested)
+        // Store metadata for use during download
+        downloadBtn.dataset.filename = file.name;
+        downloadBtn.dataset.minY = minY;
+        downloadBtn.dataset.maxY = maxY;
+      },
+      error: (err) => { status.textContent = 'Error scanning CSV: ' + err.message; }
+    });
+  });
+
+  // Show sampled preview
+  function renderTableFromSample(rows, xField, yField, yNormArray){
+    const cols = [xField, yField, 'normalized'];
+    let html = '<table><thead><tr>' + cols.map(c => `<th>${c}</th>`).join('') + '</tr></thead><tbody>';
+    for(let i=0;i<rows.length;i++){
+      const r = rows[i];
+      const x = r[xField]; const y = r[yField]; const yn = yNormArray[i];
+      html += '<tr>' + [`${x===undefined?'':x}`, `${y===undefined?'':y}`, `${yn===null||yn===undefined?'':Number(yn).toFixed(4)}`].map(c => `<td>${c}</td>`).join('') + '</tr>';
+    }
+    html += '</tbody></table>';
+    tableContainer.innerHTML = html;
+  }
+
+  // Render a simple stats table listing each column with percent numeric, min and max
+  function populateStatsTable(statsObj, fieldsList){
+    let html = '<table><thead><tr><th>Column</th><th>% numeric</th><th>min</th><th>max</th></tr></thead><tbody>';
+    for(const f of fieldsList){
+      const stats = statsObj[f] || {countNumeric:0,countTotal:0,min:Infinity,max:-Infinity};
+      const pct = stats.countTotal === 0 ? 0 : Math.round((stats.countNumeric / stats.countTotal) * 100);
+      const minStr = stats.min === Infinity ? '-' : stats.min;
+      const maxStr = stats.max === -Infinity ? '-' : stats.max;
+      html += `<tr><td style="text-align:left">${f}</td><td>${pct}%</td><td>${minStr}</td><td>${maxStr}</td></tr>`;
+    }
+    html += '</tbody></table>';
+    const s = document.getElementById('colStats');
+    s.innerHTML = html;
+  }
+
+  // Apply user-selected columns (override auto-detected)
+  applyCols.addEventListener('click', ()=>{
+    const selX = colX.value; const selY = colY.value;
+    if(!selX || !selY){ status.textContent = 'Select both X and Y columns.'; return; }
+    chosenX = selX; chosenY = selY;
+    // recompute min/max from stats
+    const minY = perFieldStats[chosenY].min === Infinity ? null : perFieldStats[chosenY].min;
+    const maxY = perFieldStats[chosenY].max === -Infinity ? null : perFieldStats[chosenY].max;
+    if(minY === null || maxY === null || minY === maxY){ status.textContent = 'Selected Y column has no numeric variation.'; return; }
+    // recompute sampled normalized values and rerender
+    const xs = [], ys = [], ysNorm = [];
+    for(const r of sampledRows){
+      const xv = r[chosenX]; const yv = r[chosenY];
+      const xn = isNumeric(xv) ? Number(xv) : null; const yn = isNumeric(yv) ? Number(yv) : null;
+      xs.push(xn); ys.push(yn); ysNorm.push(yn===null?null:((yn - minY)/(maxY-minY)));
+    }
+    renderTableFromSample(sampledRows, chosenX, chosenY, ysNorm);
+    renderChart(xs, ys, ysNorm);
+    // update metadata for download
+    downloadBtn.dataset.minY = minY; downloadBtn.dataset.maxY = maxY;
+    status.textContent = `Using X: "${chosenX}", Y: "${chosenY}". Ready.`;
+  });
+
+  // Compute downsample indices using the provided formula:
+  // const idx = [...Array(N)].map((_, i) => Math.round(i*(data.length-1)/(N-1)));
+  function computeDownsampleIndices(N, dataLength){
+    if(N <= 0 || dataLength <= 0) return new Set();
+    const arr = Array.from({length:N}, (_,i) => Math.round(i*(dataLength-1)/(N-1)));
+    return new Set(arr);
+  }
+  // Explanation: Downsampling selects N existing points evenly across the original array
+  // using the index formula above. This does not interpolate; it preserves the original
+  // sample values and their order. By sampling evenly across the curve we keep the
+  // overall melting shape and important features (for example the Tm region) because
+  // points around sharp transitions will still be represented when N is sufficient.
+  // This approach avoids introducing artifacts from interpolation while reducing
+  // data volume for plotting/export.
+
+  // Capture downsampled points for chart/preview by streaming the file and selecting only the indices.
+  // This avoids loading entire file into memory but produces exact downsampled points (no interpolation).
+  async function captureDownsampledForChart(){
+    downsampledTemperature = []; downsampledFraction = [];
+    const downsampledRawY = [];
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    const total = Number(downloadBtn.dataset.totalRows) || 0;
+    const minY = Number(downloadBtn.dataset.minY);
+    const maxY = Number(downloadBtn.dataset.maxY);
+    
+    if(downsampleN <= 0){
+      // Off: try to show full resolution if small, otherwise keep sampled preview
+      if(total > 0 && total <= 50000){
+        status.textContent = 'Loading full resolution chart...';
+        // stream all rows to chart
+        await new Promise((resolve)=>{
+          Papa.parse(f, {
+            header: true, skipEmptyLines:true, worker:false,
+            step: (result)=>{
+              const row = result.data;
+              const xv = row[chosenX]; const yv = row[chosenY];
+              if(isNumeric(xv) && isNumeric(yv)){
+                downsampledTemperature.push(Number(xv)); downsampledRawY.push(Number(yv));
+                // normalize for plotting
+                if(isFinite(minY) && isFinite(maxY) && maxY !== minY){
+                  downsampledFraction.push((Number(yv) - minY) / (maxY - minY));
+                } else { downsampledFraction.push(null); }
+              }
+            },
+            complete: ()=> resolve(), 
+            error: ()=> resolve()
+          });
+        });
+      } else if(total > 50000) {
+        // too large: keep sample-based preview and inform user
+        status.textContent = 'Full-plot skipped (large file: ' + total + ' rows). Preview uses sampled points. Export will use full resolution.';
+        return;
+      } else {
+        status.textContent = 'No data loaded yet.';
+        return;
+      }
+    } else {
+      // downsampleN > 0: compute indices and stream only those rows
+      status.textContent = `Downsampling to ${downsampleN} points...`;
+      const indices = Array.from(computeDownsampleIndices(downsampleN, total));
+      const needSet = new Set(indices);
+      await new Promise((resolve)=>{
+        let rowIndex = 0;
+        Papa.parse(f, {
+          header: true, skipEmptyLines:true, worker:false,
+          step: (result)=>{
+            const row = result.data;
+            if(needSet.has(rowIndex)){
+              const xv = row[chosenX]; const yv = row[chosenY];
+              if(isNumeric(xv) && isNumeric(yv)){
+                downsampledTemperature.push(Number(xv)); downsampledRawY.push(Number(yv));
+                if(isFinite(minY) && isFinite(maxY) && maxY !== minY){
+                  downsampledFraction.push((Number(yv) - minY) / (maxY - minY));
+                } else { downsampledFraction.push(null); }
+              } else {
+                downsampledTemperature.push(null); downsampledRawY.push(null); downsampledFraction.push(null);
+              }
+            }
+            rowIndex++;
+          },
+          complete: ()=> resolve(), 
+          error: ()=> resolve()
+        });
+      });
+    }
+    // Render chart with downsampled arrays (if any). We pass raw Y and normalized Y to renderChart.
+    if(downsampledTemperature.length){
+      renderChart(downsampledTemperature, downsampledRawY, downsampledFraction);
+      status.textContent = `Chart updated (${downsampledTemperature.length} points displayed).`;
+    } else {
+      status.textContent = 'No data to display.';
+    }
+  }
+
+  // React to downsample selection changes
+  downsampleSelect.addEventListener('change', ()=>{
+    downsampleN = Number(downsampleSelect.value) || 0;
+    status.textContent = downsampleN>0?`Downsampling to ${downsampleN} points...`:'Using full resolution (Off)';
+    // compute indices now for download time
+    const total = Number(downloadBtn.dataset.totalRows) || 0;
+    downsampleIndices = downsampleN>0 ? computeDownsampleIndices(downsampleN, total) : null;
+    // capture exact downsampled points for plotting
+    captureDownsampledForChart();
+  });
+
+  // React to monotonic smoothing toggle changes
+  monotonicsm.addEventListener('change', ()=>{
+    // re-render chart with current data
+    if(downsampledTemperature.length){
+      renderChart(downsampledTemperature, downsampledRawY, downsampledFraction);
+    } else {
+      // fall back to sampled preview if no downsampled data yet
+      const xs = [], ys = [], ysNorm = [];
+      for(const r of sampledRows){
+        const xv = r[chosenX]; const yv = r[chosenY];
+        const xn = isNumeric(xv) ? Number(xv) : null;
+        const yn = isNumeric(yv) ? Number(yv) : null;
+        const minY = perFieldStats[chosenY]?.min === Infinity ? 0 : perFieldStats[chosenY]?.min;
+        const maxY = perFieldStats[chosenY]?.max === -Infinity ? 1 : perFieldStats[chosenY]?.max;
+        xs.push(xn); ys.push(yn); ysNorm.push(yn===null ? null : ((yn - minY)/(maxY-minY)));
+      }
+      renderChart(xs, ys, ysNorm);
+    }
+  });
+
+  // -----------------------
+  // Downsample Reference Curve (step sampling)
+  // -----------------------
+  // This function processes a CSV file in two streaming passes to keep memory usage low:
+  // 1) First pass: detect columns and compute min/max of fluorescence (needed for normalization).
+  // 2) Second pass: sample every N-th row (step sampling) deterministically and collect up to `limit` points.
+  // The fraction is computed as: fraction = (maxF - F) / (maxF - minF)
+  // Numbers are formatted to 4 decimal places. Ordering is preserved and no interpolation is used.
+  function processCurveFile(file, step = 3, limit = 39){
+    return new Promise((resolve, reject) => {
+      if(!file) return reject(new Error('No file'));
+      // First pass: determine fields and min/max for fluorescence
+      let fieldsLocal = [];
+      let minF = Infinity, maxF = -Infinity;
+      let detectedIndex = null; // index of fluorescence column (0-based)
+      let rowCountLocal = 0;
+
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        worker: true,
+        step: (result) => {
+          const row = result.data;
+          if(!fieldsLocal.length){ fieldsLocal = result.meta.fields || Object.keys(row); }
+          // choose the second numeric column if possible, else second column
+          if(detectedIndex === null){
+            // try to find numeric columns in this row
+            const keys = fieldsLocal;
+            const numericKeys = keys.filter(k => isNumeric(row[k]));
+            if(numericKeys.length >= 2){ detectedIndex = keys.indexOf(numericKeys[1]); }
+            else if(keys.length >= 2){ detectedIndex = 1; }
+          }
+          // update min/max using detectedIndex if available
+          if(detectedIndex !== null){
+            const key = fieldsLocal[detectedIndex];
+            const v = row[key];
+            if(isNumeric(v)){
+              const n = Number(v);
+              if(n < minF) minF = n;
+              if(n > maxF) maxF = n;
+            }
+          }
+          rowCountLocal++;
+        },
+        complete: () => {
+          // second pass: step sample every Nth row and collect up to `limit` points
+          const temps = [];
+          const fl = [];
+          let idx = 0;
+          Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            worker: true,
+            step: (result) => {
+              const row = result.data;
+              if(detectedIndex === null){
+                // fallback: try use second column
+                const keys = Object.keys(row);
+                if(keys.length >= 2) detectedIndex = 1;
+              }
+              if(idx % step === 0){
+                const keyTemp = fieldsLocal && fieldsLocal[0] ? fieldsLocal[0] : Object.keys(row)[0];
+                const keyFluor = fieldsLocal && fieldsLocal[detectedIndex] ? fieldsLocal[detectedIndex] : Object.keys(row)[1];
+                const t = row[keyTemp];
+                const fval = row[keyFluor];
+                const tn = isNumeric(t) ? Number(t) : null;
+                const fn = isNumeric(fval) ? Number(fval) : null;
+                if(tn !== null && fn !== null){
+                  temps.push(tn);
+                  fl.push(fn);
+                }
+              }
+              idx++;
+            },
+            complete: () => {
+              // Trim to `limit` points
+              const trimTemps = temps.slice(0, limit);
+              const trimFl = fl.slice(0, limit);
+              // Normalize as fraction = (maxF - F) / (maxF - minF)
+              const denom = (maxF - minF);
+              const frac = trimFl.map(v => {
+                if(!isFinite(denom) || denom === 0) return 0;
+                return (maxF - v) / denom;
+              });
+              // Format to 4 decimal places
+              const fmt = arr => arr.map(x => Number((x===null||x===undefined)?0:Number(x)).toFixed(4)).map(s => Number(s));
+              resolve({ temperature: fmt(trimTemps), fraction_melted: fmt(frac) });
+            },
+            error: (err) => reject(err)
+          });
+        },
+        error: (err) => reject(err)
+      });
+    });
+  }
+
+  // UI hook: Downsample Reference Curve button
+  downsampleRefBtn.addEventListener('click', async ()=>{
+    const f = fileInput.files && fileInput.files[0];
+    if(!f){ status.textContent = 'Please upload a CSV first.'; return; }
+    const step = Math.max(1, Number(stepSize.value) || 3);
+    const totalRows = Number(downloadBtn.dataset.totalRows) || 0;
+    const expectedPoints = totalRows > 0 ? Math.ceil(totalRows / step) : 39;
+    status.textContent = `Processing reference downsample (step=${step}, expecting ~${expectedPoints} points)...`;
+    try{
+      const out = await processCurveFile(f, step, expectedPoints);
+      // show preview
+      const preview = document.getElementById('tableContainer');
+      let html = '<h4>Downsampled Reference (temperature, fraction_melted)</h4><table><thead><tr><th>temperature</th><th>fraction_melted</th></tr></thead><tbody>';
+      for(let i=0;i<out.temperature.length;i++){
+        html += `<tr><td style="text-align:left">${out.temperature[i].toFixed(4)}</td><td>${out.fraction_melted[i].toFixed(4)}</td></tr>`;
+      }
+      html += '</tbody></table>';
+      preview.innerHTML = html;
+      // enable download
+      downloadRefBtn.disabled = false;
+      // store last reference in dataset for download
+      downloadRefBtn.dataset.ref = JSON.stringify(out);
+      status.textContent = `Downsampled reference ready (${out.temperature.length} points).`;
+    }catch(err){ status.textContent = 'Error: ' + String(err); }
+  });
+
+  // Download reference CSV
+  downloadRefBtn.addEventListener('click', ()=>{
+    try{
+      const out = JSON.parse(downloadRefBtn.dataset.ref || '{}');
+      if(!out || !out.temperature) return;
+      const lines = ['temperature,fraction_melted'];
+      for(let i=0;i<out.temperature.length;i++) lines.push(`${out.temperature[i].toFixed(4)},${out.fraction_melted[i].toFixed(4)}`);
+      const blob = new Blob(["\uFEFF" + lines.join('\n')], {type:'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = 'reference_downsampled.csv'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    }catch(e){ console.warn(e); }
+  });
+
+  // Chart rendering (samples only)
+  function renderChart(xs, ys, ysNorm){
+    // Apply noise smoothing to normalized fraction if toggle is enabled
+    let yNormToPlot = ysNorm;
+    if(monotonicsm.checked) {
+      // Filter out nulls, apply smoothing, then restore nulls
+      const filtered = [];
+      const indices = [];
+      for(let i = 0; i < ysNorm.length; i++){
+        if(ysNorm[i] !== null && ysNorm[i] !== undefined){
+          filtered.push(ysNorm[i]);
+          indices.push(i);
+        }
+      }
+      if(filtered.length > 0){
+        const smoothed = smoothNoisyPeaks(filtered, 0.08);
+        yNormToPlot = ysNorm.slice();
+        for(let j = 0; j < smoothed.length; j++){
+          yNormToPlot[indices[j]] = smoothed[j];
+        }
+      }
+    }
+    
+    const labels = xs.map((v,i)=> v===null?String(i):String(v));
+    const originalDataset = { label:'Original Y', data: ys.map(v=>v===null?null:Number(v)), borderColor:'rgba(13,110,253,0.9)', backgroundColor:'rgba(13,110,253,0.12)', spanGaps:true, yAxisID:'y' };
+    const normDataset = { label:'Normalized Y (0-1)', data: yNormToPlot.map(v=>v===null?null:Number(v)), borderColor:'rgba(255,159,64,0.95)', backgroundColor:'rgba(255,159,64,0.12)', spanGaps:true, yAxisID:'y_norm' };
+    if(chart){ chart.destroy(); chart = null; }
+    chart = new Chart(chartCanvas.getContext('2d'), { type:'line', data:{labels,datasets:[originalDataset,normDataset]}, options:{ responsive:true, maintainAspectRatio:false, scales:{ y:{ display:true, position:'left', title:{display:true,text:'Original Y'} }, y_norm:{ display:true, position:'right', suggestedMin:0, suggestedMax:1, title:{display:true,text:'Normalized (0-1)'}, grid:{drawOnChartArea:false} } }, plugins:{ legend:{position:'top'} } } });
+  }
+
+  // Download click: perform second-pass streaming normalization and build CSV in chunks
+  downloadBtn.addEventListener('click', ()=>{
+    const f = fileInput.files && fileInput.files[0];
+    if(!f) return;
+    const minY = Number(downloadBtn.dataset.minY);
+    const maxY = Number(downloadBtn.dataset.maxY);
+    if(!isFinite(minY) || !isFinite(maxY) || minY === maxY){ status.textContent = 'Cannot download: invalid normalization range.'; return; }
+
+    status.textContent = 'Generating normalized CSV (streaming)...';
+    downloadBtn.disabled = true;
+
+    const header = [chosenX, chosenY + '_original', chosenY + '_normalized'];
+    const blobParts = [];
+    let lineBuffer = [];
+    let rowCount = 0;
+    let prevNormValue = null; // for monotonic smoothing tracking
+    const total = Number(downloadBtn.dataset.totalRows) || 0;
+
+    // If StreamSaver is requested, create writer ahead of time so streaming writes can begin immediately
+    if(useStreamSaver && window.streamSaver){
+      try{
+        const filename = 'normalized_' + ((new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')) + '.csv';
+        const fileStream = streamSaver.createWriteStream(filename);
+        writer = fileStream.getWriter();
+        // write header first
+        const BOM = '\uFEFF';
+        const hdr = new TextEncoder().encode(BOM + header.join(',') + '\n');
+        writer.write(hdr);
+      } catch(e){ console.warn('StreamSaver init failed', e); writer = null; }
+    } else {
+      writer = null;
+    }
+
+    // second pass: stream rows, compute normalized value, write CSV line chunks (either to memory blob or to disk via StreamSaver)
+    Papa.parse(f, {
+      header: true,
+      skipEmptyLines: true,
+      worker: true,
+      step: (result) => {
+        const row = result.data;
+            const xv = row[chosenX]; const yv = row[chosenY];
+            const xOut = (xv===undefined||xv===null)?'':xv;
+            const yOut = (yv===undefined||yv===null)?'':yv;
+            let yn = isNumeric(yv) ? ((Number(yv) - minY) / (maxY - minY)) : '';
+            
+            // Note: Monotonic smoothing in download is applied in a second pass after collecting all rows
+            // This allows proper spike detection across the entire dataset
+            
+            const ynOut = (yn === '' ? '' : yn);
+            // Determine current source row index for downsampling decisions
+            const currentIndex = rowCount; // zero-based index for this row
+            // If downsample is active, only include rows whose index is in downsampleIndices
+            let includeRow = true;
+            if(downsampleN > 0 && downsampleIndices){ includeRow = downsampleIndices.has(currentIndex); }
+            if(includeRow){
+              lineBuffer.push([csvEscapeField(xOut), csvEscapeField(yOut), csvEscapeField(ynOut)].join(','));
+            }
+            rowCount++;
+        // update progress bar if we know total rows from the initial scan
+        if(total > 0){
+          const pct = Math.min(100, Math.round((rowCount / total) * 100));
+          progressBar.value = pct; progressText.textContent = `${pct}% (${rowCount}/${total})`;
+        } else { progressText.textContent = `${rowCount} rows processed`; }
+        if(lineBuffer.length >= FLUSH_LINES){
+          const chunk = lineBuffer.join('\n') + '\n';
+          if(useStreamSaver && window.streamSaver){
+            // write directly to disk
+            try{ writer && writer.ready && writer.write( new TextEncoder().encode(chunk) ); }
+            catch(e){ /* ignore write errors here - handled in complete/error */ }
+          } else {
+            blobParts.push(chunk);
+          }
+          lineBuffer = [];
+        }
+      },
+      complete: () => {
+        if(lineBuffer.length){
+          const chunk = lineBuffer.join('\n') + '\n';
+          if(useStreamSaver && window.streamSaver){ try{ writer && writer.write( new TextEncoder().encode(chunk) ); } catch(e){} }
+          else { blobParts.push(chunk); }
+        }
+        // finish StreamSaver writer if used
+        if(useStreamSaver && window.streamSaver && writer){
+          writer.close();
+          progressBar.value = 100; progressText.textContent = `Done. Stream-saved ${rowCount} rows.`;
+          downloadBtn.disabled = false;
+          return;
+        }
+
+        // fallback: create final Blob and download (prepend UTF-8 BOM for Excel compatibility)
+        const BOM = '\uFEFF';
+        const first = BOM + header.join(',') + '\n';
+        const finalBlob = new Blob([first].concat(blobParts), {type:'text/csv;charset=utf-8;'});
+        const url = URL.createObjectURL(finalBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'normalized_' + ((new Date()).toISOString().slice(0,19).replace(/[:T]/g,'-')) + '.csv';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        progressBar.value = 100; progressText.textContent = `Done. Wrote ${rowCount} rows.`;
+        downloadBtn.disabled = false;
+      },
+      error: (err) => { status.textContent = 'Error generating CSV: ' + err.message; downloadBtn.disabled = false; }
+    });
+  });
+
+  // Drag-and-drop support (non-blocking)
+  ;(function enableDragDrop(){
+    const dropArea = document.body;
+    dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.style.background = '#fbfbff'; });
+    dropArea.addEventListener('dragleave', e => { dropArea.style.background = ''; });
+    dropArea.addEventListener('drop', e => {
+      e.preventDefault(); dropArea.style.background = '';
+      const f = e.dataTransfer.files && e.dataTransfer.files[0];
+      if(f) { fileInput.files = e.dataTransfer.files; const ev = new Event('change'); fileInput.dispatchEvent(ev); }
+    });
+  })();
+
+  </script>
+</body>
+</html>

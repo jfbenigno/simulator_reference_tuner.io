@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCR Simulation Tuner - Reference Sequences</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: white;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+        
+        header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        h2 {
+            color: #2c3e50;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin: 30px 0 20px 0;
+            font-size: 1.8em;
+        }
+        
+        h2:first-child {
+            margin-top: 0;
+        }
+        
+        h3 {
+            color: #34495e;
+            margin: 25px 0 15px 0;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+        }
+        
+        h3::before {
+            content: "▶";
+            color: #667eea;
+            margin-right: 10px;
+            font-size: 0.8em;
+        }
+        
+        .strain {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        .strain-name {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+        }
+        
+        .metadata {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        
+        .label {
+            font-weight: 600;
+            color: #555;
+        }
+        
+        .value {
+            color: #333;
+        }
+        
+        .sequence {
+            background: #fff;
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            word-break: break-all;
+            line-height: 1.8;
+            color: #c7254e;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        
+        .note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .note-title {
+            font-weight: bold;
+            color: #856404;
+            margin-bottom: 8px;
+        }
+        
+        .note-content {
+            color: #856404;
+            line-height: 1.7;
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+        }
+        
+        .info-box strong {
+            color: #0d47a1;
+        }
+        
+        a {
+            color: #667eea;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+        
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }
+        
+        .extraction-note {
+            font-style: italic;
+            color: #666;
+            margin-top: 5px;
+            font-size: 0.95em;
+        }
+        
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            
+            .container {
+                box-shadow: none;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .content {
+                padding: 20px;
+            }
+            
+            h1 {
+                font-size: 1.6em;
+            }
+            
+            h2 {
+                font-size: 1.4em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Reference Sequences</h1>
+            <p class="subtitle">PCR Simulation Tuner App</p>
+        </header>
+        
+        <div class="content">
+            <!-- FCV Strains Section -->
+            <h2>Feline Calicivirus (FCV) Strains</h2>
+            
+            <h3>Primary Strains (Extracted by Dr. Horton)</h3>
+            
+            <div class="strain">
+                <div class="strain-name">FCV GX01-13</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">KT970059</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">TGGAACATTACAACAGCCAGTTCAATGGCGTGGAGGCGCGGTCCGATCAGATCAATATGAGTGATGGTACCGCCCTACACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACGTGCTAAAATACTATGATTGGGACCC</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV UTCVM-H2</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">AY560117</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">TGGAGCATTACAACAGCCTATTCAATGGCGTGGAGGCGCGGACTGACCAGATCGATTCGAGTGGCATGGCCGCCCTACACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACGTGCTTAAATACTATGATTGGGATCC</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">CV-Vac Nobivac® 1-HCPCh (Vaccine Strain)</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">KU373057</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">TGGAGCATTACAACAACCAGTTTAATGGTGTGGAGGCGCGGTCTGACCAGATCGATGCGAGTGGCATGACCGCCCTACACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACGTGCTTAAATATTACAATTGGGACCC</div>
+                </div>
+            </div>
+            
+            <h3>Additional FCV Strains</h3>
+            
+            <div class="note">
+                <div class="note-title">Extraction Methodology:</div>
+                <div class="note-content">
+                    The following sequences were extracted using WebPlotDigitizer (<a href="https://automeris.io/" target="_blank">https://automeris.io/</a>), processed through the normalization application, and the resulting temperature and melting fraction data were incorporated into <code>meltDNA_ref_curves.js</code>.
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV-TH/KP361</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">MZ542330</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GGCGTGGAGGCGCGGACTGACCAGATCGGTGCGAGTGGCATGGCCGCCCTCCACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACG</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV-TH/KP80</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">OM982622</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GGCGTGGAGGCGCGGACTGACCAGATCGGTGCGAGTGGCATGGCCGCCCTCCACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAAC</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV-TH/KP313</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">OM982631</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GGCGTGGAGGCGCGGACTGACCAGATCGGTGCGAGTGGCATGGCCGCCCTCCACTGTGATGTGGTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACG</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV-TH/KP181</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">OM982629</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GGTGTGGAGGCGCGGACTGACCAGATCGGTGCGAGTGGCATGGCCGCCCTCCACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACG</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">FCV-TH/KP82</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">OM982623</span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GGTGTGGAGGCGCGGACTGACCAGATCGGTGCGAGTGGCATGGCCGCCCTCCACTGTGATGTGTTCGAAGTTTGAGCATGTGCTCAACCTGCGCTAACG</div>
+                </div>
+            </div>
+            
+            <!-- Malaria Section -->
+            <h2>Plasmodium falciparum (Malaria)</h2>
+            
+            <div class="info-box">
+                <strong>Recommended Algorithm:</strong> Use the Thermodynamic (Mixed Salt) algorithm in the tuner app for optimal results with this sequence.
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">P. falciparum</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">M54987</span>
+                    <span class="label">Position:</span>
+                    <span class="value">257–483</span>
+                    <span class="label">Reference:</span>
+                    <span class="value"><a href="https://www.nature.com/articles/srep15671" target="_blank">https://www.nature.com/articles/srep15671</a></span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GAAACTGCGAACGGCTCATTAAAACAGTTATAGTCTACTTGACATTTTTTTTATAAGGATAACTACGGAAAAGCTGTAGCTAATACTTGCTTTAATACTCTTAATTCTTATGTTTTTTTGAGTATGTATTTGTTAAGCCTTATAAGAGAAAAGTATATTAACTTAAGGATTATAACAAAGAAGTAACACATAATAAATTTCGAATATTTAGTGTGTATCAATCGAGT</div>
+                </div>
+            </div>
+            
+            <!-- Influenza A Section -->
+            <h2>Influenza A Virus Strains</h2>
+            
+            <div class="note">
+                <div class="note-title">Background Information:</div>
+                <div class="note-content">
+                    Lin et al. (2008) describe an HRM assay targeting nucleotides 238–416 of the influenza A M gene. While the original article does not provide complete nucleotide sequences for the reference strains, the amplicon sequences used in this simulator were reconstructed from publicly available GenBank M-gene references containing exact matches to the assay primers:<br><br>
+                    
+                    • <strong>A/California/07/2009 (H1N1)</strong> — NC_026431.1<br>
+                    • <strong>A/Wisconsin/67/2005 (H3N2)</strong> — EU100611.1<br>
+                    • <strong>A/Canada/rv504/2004 (H7N3)</strong> — CY015007.1 (synthetic control source)<br><br>
+                    
+                    These sequences were used exclusively to reconstruct the amplicon region (nucleotides 238–416) and are not the identical isolates used in the original HRM experiment.<br><br>
+                    
+                    <strong>Reference:</strong> <a href="https://journals.asm.org/doi/10.1128/jcm.02015-07" target="_blank">https://journals.asm.org/doi/10.1128/jcm.02015-07</a>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">Influenza A H1N1</div>
+                <div class="metadata">
+                    <span class="label">Strain:</span>
+                    <span class="value">A/California/07/2009 (H1N1)</span>
+                    <span class="label">Accession Number:</span>
+                    <span class="value">NC_026431.1</span>
+                    <span class="label">Position:</span>
+                    <span class="value">238–416</span>
+                    <span class="label">Reference:</span>
+                    <span class="value"><a href="https://www.ncbi.nlm.nih.gov/nuccore/NC_026431.1" target="_blank">https://www.ncbi.nlm.nih.gov/nuccore/NC_026431.1</a></span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">TGTCCAAAATGCCCTAAATGGGAATGGGGACCCGAACAACATGGATAGAGCAGTTAAACTATACAAGAAGCTCAAAAGAGAAATAACGTTCCATGGGGCCAAGGAGGTGTCACTAAGCTATTCAACTGGTGCACTTGCCAGTTGCATGGGCCTCATATACAACAGGATGGGAACAGTGA</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">Influenza A H3N2</div>
+                <div class="metadata">
+                    <span class="label">Strain:</span>
+                    <span class="value">A/Wisconsin/67/2005 (H3N2)</span>
+                    <span class="label">Accession Number:</span>
+                    <span class="value">EU100611</span>
+                    <span class="label">Position:</span>
+                    <span class="value">238–416</span>
+                    <span class="label">Reference:</span>
+                    <span class="value"><a href="https://www.ncbi.nlm.nih.gov/nuccore/EU100611.1" target="_blank">https://www.ncbi.nlm.nih.gov/nuccore/EU100611.1</a></span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GCGAGGACTGCAGCGTAGACGCTTTGTCCAAAATGCCCTCAATGGGAATGGAGATCCAAATAACATGGACAAAGCAGTTAAACTGTATAGGAAACTTAAGAGGGAGATAACGTTCCATGGGGCCAAAGAAATAGCTCTCAGTTATTCTGCTGGTGCACTTGCCAGTTGCATGGGCCTCA</div>
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">Influenza A H7N3</div>
+                <div class="metadata">
+                    <span class="label">Strain:</span>
+                    <span class="value">A/Canada/rv504/2004 (H7N3)</span>
+                    <span class="label">Accession Number:</span>
+                    <span class="value">CY015007</span>
+                    <span class="label">Position:</span>
+                    <span class="value">238–416</span>
+                    <span class="label">Reference:</span>
+                    <span class="value"><a href="https://www.ncbi.nlm.nih.gov/nuccore/CY015007" target="_blank">https://www.ncbi.nlm.nih.gov/nuccore/CY015007</a></span>
+                    <span class="label">Sequence:</span>
+                    <div class="sequence">GCGAGGACTGCAGCGTAGACGCTTTGTCCAAAATGCCCTTAATGGGAATGGGGATCCAAACAACATGGACAGAGCGGTCAAACTGTATAGGAAGCTAAAAAGGGAAATAACATTCCATGGGGCAAAAGAAGTGGCACTCAGTTATTCAACTGGTGCACTTGCCAGTTGCATGGGCCTCA</div>
+                </div>
+            </div>
+            
+            <!-- Bacteriophage Section -->
+            <h2>Bacteriophage PhiX174</h2>
+            
+            <div class="note">
+                <div class="note-title">Processing Notes:</div>
+                <div class="note-content">
+                    The melting curve for PhiX174 was extracted using WebPlotDigitizer. The resulting CSV file was processed through a Python application, normalized using the provided normalization app, and subsequently integrated into <code>meltDNA_ref_curves.js</code>.
+                </div>
+            </div>
+            
+            <div class="strain">
+                <div class="strain-name">PhiX174 Bacteriophage</div>
+                <div class="metadata">
+                    <span class="label">Accession Number:</span>
+                    <span class="value">NC_001422 (GenBank ID: 9626372)</span>
+                    <span class="label">Sequence Used:</span>
+                    <span class="value">Complete genome sequence</span>
+                    <span class="label">Primary Reference:</span>
+                    <span class="value"><a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC382884/pdf/pnas00001-0109.pdf" target="_blank">https://pmc.ncbi.nlm.nih.gov/articles/PMC382884/pdf/pnas00001-0109.pdf</a></span>
+                    <span class="label">Sequence Source:</span>
+                    <span class="value"><a href="https://www.ncbi.nlm.nih.gov/nuccore/9626372" target="_blank">https://www.ncbi.nlm.nih.gov/nuccore/9626372</a></span>
+                </div>
+            </div>
+        </div>
+        
+        <footer>
+            <p>PCR Simulation Tuner App Reference Document</p>
+        </footer>
+    </div>
+</body>
+</html>
