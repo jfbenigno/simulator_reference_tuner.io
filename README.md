@@ -1,6 +1,11 @@
 # simulator_reference_tuner.io
 # DNA Melting Curve - Reference vs Simulation Tuner
 
+## 🔗 Live Web App
+You can run the PCR Simulator Reference Tuner here:
+
+👉 https://jfbenigno.github.io/simulator_reference_tuner.io/
+
 A comprehensive toolkit for analyzing, normalizing, and comparing DNA melting curves from qPCR experiments. This project enables researchers to validate simulated melting curves against experimental reference data through interactive web-based tools.
 
 ## 🧬 Overview
